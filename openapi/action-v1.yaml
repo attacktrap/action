@@ -1,0 +1,353 @@
+openapi: 3.1.0
+info:
+  title: Woozle Trap Action API
+  version: 1.0.0
+  description: |
+    The exchange between the Action and its server. The Action sends a
+    description of the project, the server answers with content and a path
+    for the Action to write, or with a reason to skip, and the Action
+    reports the outcome of the write.
+
+    Every business outcome is a `200` response, so the Action has one code
+    path. Every `/v1` change is additive.
+security:
+  - githubOidc: []
+paths:
+  /v1/canaries:
+    post:
+      operationId: requestCanary
+      summary: Ask the server what to write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CanaryRequest"
+      responses:
+        "200":
+          description: Content to write, or a reason to skip.
+          content:
+            application/json:
+              schema:
+                type: object
+                oneOf:
+                  - $ref: "#/components/schemas/Place"
+                  - $ref: "#/components/schemas/Skip"
+                discriminator:
+                  propertyName: result
+              examples:
+                place:
+                  value:
+                    result: place
+                    placementId: "<placement id>"
+                    path: dir/file.txt
+                    content: "<file content>"
+                    mask: ["<value>"]
+                skip:
+                  value:
+                    result: skip
+                    code: not_onboarded
+                    message: "<message>"
+                    url: https://example.com/
+  /v1/placements/{placementId}/result:
+    post:
+      operationId: reportPlacement
+      summary: Report the outcome of a write
+      parameters:
+        - name: placementId
+          in: path
+          required: true
+          description: The `placementId` from the `Place` response.
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlacementResult"
+            examples:
+              written:
+                value:
+                  status: written
+      responses:
+        "204":
+          description: The outcome was recorded.
+        "404":
+          description: No placement with this ID belongs to the repository in the token.
+components:
+  securitySchemes:
+    githubOidc:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A GitHub Actions OIDC token with audience `woozle-trap`. The Action
+        requests a fresh token for each call.
+  schemas:
+    CanaryRequest:
+      type: object
+      additionalProperties: false
+      required: [action_version, pipeline, project]
+      properties:
+        action_version:
+          type: string
+          description: The version of the Action making the call.
+          examples: ["1.0.0"]
+        pipeline:
+          $ref: "#/components/schemas/Pipeline"
+        project:
+          $ref: "#/components/schemas/Project"
+    Pipeline:
+      type: object
+      additionalProperties: false
+      required: [findings, incomplete]
+      description: What the Action found in the steps that run after it.
+      properties:
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        incomplete:
+          type: boolean
+          description: True when the Action could not follow every later step.
+    Finding:
+      type: object
+      additionalProperties: false
+      required: [kind, tool]
+      properties:
+        kind:
+          type: string
+          enum: [public_publish, scanner, unreadable]
+        tool:
+          $ref: "#/components/schemas/ToolId"
+    ToolId:
+      type: string
+      enum:
+        - npm
+        - pypi
+        - poetry
+        - uv
+        - ecr_public
+        - gh_release
+        - gh_artifact
+        - gh_pages
+        - git_commit
+        - trufflehog
+        - gitleaks
+        - ggshield
+        - trivy
+        - snyk
+        - semgrep
+        - checkov
+        - docker_scout
+        - aws_inspector
+        - unknown
+    Project:
+      type: object
+      additionalProperties: false
+      required: [tree, dependencies, manifests, docker, lambda, build_targets]
+      properties:
+        tree:
+          type: array
+          maxItems: 5000
+          description: |
+            Repository-relative paths of the files in the checkout, skipping
+            version control, installed dependency and cache directories.
+          items:
+            $ref: "#/components/schemas/RepoPath"
+        dependencies:
+          $ref: "#/components/schemas/Dependencies"
+        manifests:
+          type: object
+          description: Selected fields of each manifest, keyed by its path.
+          additionalProperties:
+            $ref: "#/components/schemas/Manifest"
+        docker:
+          type: object
+          description: Each image build file, reduced to these fields, keyed by its path.
+          additionalProperties:
+            $ref: "#/components/schemas/ImageBuild"
+        lambda:
+          type: object
+          description: Function entries from each template, keyed by its path.
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/Function"
+        build_targets:
+          type: array
+          description: Every path refers to an entry in `tree`.
+          items:
+            $ref: "#/components/schemas/BuildTarget"
+    RepoPath:
+      type: string
+      description: A path relative to the repository root.
+      examples: [dir/file.txt]
+    Dependencies:
+      type: object
+      additionalProperties: false
+      required: [node, python]
+      description: Dependency names only, with no versions, URLs or scripts.
+      properties:
+        node:
+          type: array
+          items:
+            type: string
+          examples: [["<name>"]]
+        python:
+          type: array
+          items:
+            type: string
+          examples: [["<name>"]]
+    Manifest:
+      type: object
+      additionalProperties: false
+      properties:
+        main:
+          type: string
+        type:
+          type: string
+          enum: [commonjs, module]
+        bin:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties:
+                type: string
+        files:
+          type: array
+          items:
+            type: string
+    ImageBuild:
+      type: object
+      additionalProperties: false
+      required: [stages, ignore]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stage"
+        ignore:
+          type: array
+          description: Exclusion patterns that apply to the build.
+          items:
+            type: string
+    Stage:
+      type: object
+      additionalProperties: false
+      required: [from, copies]
+      description: One build stage, keeping only these instructions.
+      properties:
+        from:
+          type: string
+        workdir:
+          type: string
+        copies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Copy"
+    Copy:
+      type: object
+      additionalProperties: false
+      required: [src, dest]
+      properties:
+        src:
+          type: array
+          items:
+            type: string
+        dest:
+          type: string
+    Function:
+      type: object
+      additionalProperties: false
+      required: [code_uri, handler, runtime]
+      properties:
+        code_uri:
+          type: string
+        handler:
+          type: string
+        runtime:
+          type: string
+    BuildTarget:
+      type: object
+      additionalProperties: false
+      required: [kind, path, context]
+      properties:
+        kind:
+          type: string
+          enum: [docker, lambda_zip]
+        path:
+          $ref: "#/components/schemas/RepoPath"
+        context:
+          type: string
+    Place:
+      type: object
+      additionalProperties: false
+      required: [result, placementId, path, content, mask]
+      properties:
+        result:
+          type: string
+          const: place
+        placementId:
+          type: string
+          minLength: 1
+          description: The Action sends this back in `reportPlacement`.
+        path:
+          type: string
+          minLength: 1
+          description: |
+            Where the Action writes `content`, relative to the workspace. The
+            Action writes only if the path resolves inside the workspace and
+            nothing exists there yet.
+          examples: [dir/file.txt]
+        content:
+          type: string
+          description: What the Action writes at `path`.
+          examples: ["<file content>"]
+        mask:
+          type: array
+          description: Values the Action masks in its logs before it does anything else.
+          items:
+            type: string
+          examples: [["<value>"]]
+    Skip:
+      type: object
+      additionalProperties: false
+      required: [result, code, message]
+      properties:
+        result:
+          type: string
+          const: skip
+        code:
+          $ref: "#/components/schemas/SkipCode"
+        message:
+          type: string
+          description: A human-readable explanation of `code`.
+        url:
+          type: string
+          format: uri
+          description: A link the Action includes in its warning.
+    SkipCode:
+      type: string
+      enum:
+        - not_onboarded
+        - cap_reached
+        - unsupported_event
+        - unsupported_project
+        - pipeline_public_publish
+        - pipeline_scanner
+        - pipeline_unreadable
+        - temporarily_unavailable
+    PlacementResult:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [written, path_exists, write_failed]
+          description: |
+            `written` when the Action wrote the file, `path_exists` when a file
+            was already there, and `write_failed` for any other failure.

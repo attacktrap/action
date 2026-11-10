@@ -8,6 +8,10 @@ A GitHub Action step that runs quietly alongside your workflow.
 
 It takes no inputs. It never fails your build. If anything goes wrong or it runs past its time budget, it prints a warning and exits successfully.
 
+## API
+
+The Action talks to one server API, described in [`openapi/action-v1.yaml`](openapi/action-v1.yaml). The `v1` API only grows: CI fails on any breaking change to it.
+
 ## Development
 
 Requires the Node version in `.nvmrc`.

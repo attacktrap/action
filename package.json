@@ -12,7 +12,10 @@
     "@actions/core": "^3.0.1"
   },
   "devDependencies": {
+    "@seriousme/openapi-schema-validator": "^2.10.0",
     "@types/node": "^24.19.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
