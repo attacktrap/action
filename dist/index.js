@@ -19589,9 +19589,12 @@ function warning(message, properties = {}) {
 }
 
 // src/action.ts
-async function action(_signal) {
+async function action() {
   debug(`API base URL: ${"https://api.example.invalid"}`);
 }
+
+// src/main.ts
+import { spawn } from "node:child_process";
 
 // src/warnings.ts
 var WARNINGS = {
@@ -19599,40 +19602,45 @@ var WARNINGS = {
   timed_out: "The action ran past its time budget and stopped."
 };
 function warn(code) {
-  warning(`Woozle Trap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
-}
-
-// src/run.ts
-var BUDGET_MS = 3e4;
-var TIMED_OUT = /* @__PURE__ */ Symbol("timed out");
-async function run(work, budgetMs = BUDGET_MS) {
-  const controller = new AbortController();
-  let timer;
-  const budget = new Promise((resolve) => {
-    timer = setTimeout(resolve, budgetMs, TIMED_OUT);
-  });
   try {
-    if (await Promise.race([work(controller.signal), budget]) === TIMED_OUT) {
-      controller.abort();
-      warn("timed_out");
-    }
+    warning(`Woozle Trap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
   } catch {
-    warn("internal_error");
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 // src/main.ts
-async function main(work, budgetMs) {
-  const bail = () => {
-    warn("internal_error");
+var BUDGET_MS = 3e4;
+var EXIT_MARGIN_MS = 500;
+var WORKER_FLAG = "--work";
+async function main(work, { budgetMs = BUDGET_MS } = {}) {
+  if (process.argv.includes(WORKER_FLAG)) {
+    await work();
+    process.exit(0);
+  }
+  supervise(budgetMs);
+}
+function supervise(budgetMs) {
+  const finish = (code) => {
+    if (code) warn(code);
     process.exit(0);
   };
-  process.on("uncaughtException", bail);
-  process.on("unhandledRejection", bail);
-  await run(work, budgetMs);
-  process.exit(0);
+  process.on("uncaughtException", () => finish("internal_error"));
+  process.on("unhandledRejection", () => finish("internal_error"));
+  try {
+    const args = [...process.execArgv, process.argv[1], ...process.argv.slice(2), WORKER_FLAG];
+    const child = spawn(process.execPath, args, { stdio: ["ignore", "inherit", "ignore"] });
+    setTimeout(
+      () => {
+        child.kill("SIGKILL");
+        finish("timed_out");
+      },
+      Math.max(0, budgetMs - EXIT_MARGIN_MS - performance.now())
+    );
+    child.on("error", () => finish("internal_error"));
+    child.on("exit", (code) => finish(code === 0 ? void 0 : "internal_error"));
+  } catch {
+    finish("internal_error");
+  }
 }
 
 // src/index.ts
