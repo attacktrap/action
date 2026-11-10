@@ -347,7 +347,7 @@ components:
       properties:
         status:
           type: string
-          enum: [written, path_exists, write_failed]
+          enum: [written, write_failed]
           description: |
             `written` when the Action wrote the file, `path_exists` when a file
             was already there, and `write_failed` for any other failure.
