@@ -43,7 +43,16 @@ function subschemas(schema: Schema): [string, Schema][] {
 
 function openings(schema: Schema, at: string): string[] {
   const problems = FORBIDDEN.filter((key) => key in schema).map((key) => `${at} uses ${key}`);
+  if (!["type", "$ref", "oneOf"].some((key) => key in schema)) problems.push(`${at} accepts any value`);
   if (schema.type !== undefined && typeof schema.type !== "string") problems.push(`${at} has a type list`);
+  const names = Object.keys((schema.properties ?? {}) as object);
+  for (const name of (schema.required ?? []) as string[]) {
+    if (!names.includes(name)) problems.push(`${at} requires undeclared ${name}`);
+  }
+  const discriminator = schema.discriminator as Schema | undefined;
+  if (discriminator && Object.keys(discriminator).join() !== "propertyName") {
+    problems.push(`${at} discriminator has more than propertyName`);
+  }
   if (schema.properties !== undefined && (schema.type !== "object" || schema.additionalProperties !== false)) {
     problems.push(`${at} has properties but is not a closed object`);
   }
@@ -93,7 +102,7 @@ describe("openapi/action-v1.yaml", async () => {
     expect(() => ajv.compile(localRefs(schema) as Schema)).not.toThrow();
   });
 
-  it("closes every object schema", () => {
+  it("closes every schema", () => {
     expect(roots.flatMap(([at, schema]) => openings(schema, at))).toEqual([]);
   });
 

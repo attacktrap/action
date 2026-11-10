@@ -42,5 +42,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/base"
           git show "$BASE:$SPEC" > "$RUNNER_TEMP/base/spec.yaml"
           docker run --rm --network none \
-            -v "$RUNNER_TEMP/base:/base:ro" -v "$PWD/openapi:/revision:ro" \
-            "$OASDIFF" breaking /base/spec.yaml /revision/action-v1.yaml --fail-on WARN
+            -v "$RUNNER_TEMP/base:/base:ro" -v "$PWD/openapi:/revision:ro" -v "$PWD/.github:/config:ro" \
+            "$OASDIFF" breaking /base/spec.yaml /revision/action-v1.yaml \
+            --fail-on WARN --severity-levels /config/oasdiff-levels.txt
