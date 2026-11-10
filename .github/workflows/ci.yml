@@ -34,6 +34,7 @@ jobs:
           SPEC: openapi/action-v1.yaml
           OASDIFF: tufin/oasdiff@sha256:82b1840a77335562bb11ce95f77ad31745a0c6f3a770929333ed1c5ef466e400
         run: |
+          git cat-file -e "$BASE^{commit}"
           if ! git cat-file -e "$BASE:$SPEC" 2>/dev/null; then
             echo "::notice::$SPEC does not exist at $BASE, nothing to compare"
             exit 0

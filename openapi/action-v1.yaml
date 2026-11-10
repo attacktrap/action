@@ -29,14 +29,12 @@ paths:
           content:
             application/json:
               schema:
+                type: object
                 oneOf:
                   - $ref: "#/components/schemas/Place"
                   - $ref: "#/components/schemas/Skip"
                 discriminator:
                   propertyName: result
-                  mapping:
-                    place: "#/components/schemas/Place"
-                    skip: "#/components/schemas/Skip"
               examples:
                 place:
                   value:
@@ -163,17 +161,17 @@ components:
           $ref: "#/components/schemas/Dependencies"
         manifests:
           type: object
-          description: Selected fields of each Node package manifest, keyed by its path.
+          description: Selected fields of each manifest, keyed by its path.
           additionalProperties:
             $ref: "#/components/schemas/Manifest"
         docker:
           type: object
-          description: Each container image build file, reduced to these fields, keyed by its path.
+          description: Each image build file, reduced to these fields, keyed by its path.
           additionalProperties:
             $ref: "#/components/schemas/ImageBuild"
         lambda:
           type: object
-          description: Function entries from each serverless template, keyed by its path.
+          description: Function entries from each template, keyed by its path.
           additionalProperties:
             type: array
             items:
@@ -233,7 +231,7 @@ components:
             $ref: "#/components/schemas/Stage"
         ignore:
           type: array
-          description: Patterns from the matching ignore file.
+          description: Exclusion patterns that apply to the build.
           items:
             type: string
     Stage:
