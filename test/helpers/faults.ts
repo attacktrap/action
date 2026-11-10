@@ -1,26 +1,41 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import type { Work } from "../../src/run.ts";
+import type { Work } from "../../src/main.ts";
 
 const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export const faults = {
   throws: () => {
-    throw new Error("content");
+    throw new Error("fault content");
   },
   rejects: async () => {
-    throw new Error("content");
+    throw new Error("fault content");
   },
-  hangs: () => new Promise<void>(() => {}),
+  hangs: () =>
+    new Promise<void>(() => {
+      setInterval(() => {}, 1_000);
+    }),
+  spins: () => {
+    for (;;) {}
+  },
   throwsLater: async () => {
     setTimeout(() => {
-      throw new Error("content");
+      throw new Error("fault content");
     });
     await later(5_000);
   },
   rejectsUnhandled: async () => {
-    void Promise.reject(new Error("content"));
+    void Promise.reject(new Error("fault content"));
     await later(5_000);
+  },
+  exits: async () => {
+    process.exit(1);
+  },
+  breaksStdout: async () => {
+    process.stdout.write = () => {
+      throw new Error("fault content");
+    };
+    throw new Error("fault content");
   },
 } satisfies Record<string, Work>;
 
