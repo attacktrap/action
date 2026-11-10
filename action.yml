@@ -1,0 +1,8 @@
+name: Woozle Trap
+description: A drop-in step that never fails your build.
+runs:
+  using: node24
+  main: dist/index.js
+branding:
+  icon: check-circle
+  color: green
