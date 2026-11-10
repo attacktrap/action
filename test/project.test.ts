@@ -237,6 +237,44 @@ describe("collectProject", () => {
   });
 });
 
+describe("edge cases", () => {
+  const stagesOf = async (text: string) => (await collectProject(makeTree({ Dockerfile: text }))).docker.Dockerfile.stages;
+
+  it("drops local archive requirements", async () => {
+    const project = await collectProject(makeTree({ "requirements.txt": "a-1.2.3-py3-none-any.whl\nb-4.5.6.tar.gz\n./c\nd/e.zip\npkg-a\n" }));
+    expect(project.dependencies.python).toEqual(["pkg-a"]);
+  });
+
+  it.each([
+    ["a quoted heredoc word", 'FROM a\nRUN <<"END-TEXT"\ncopy content to here\nEND-TEXT\nCOPY a/b.txt /c'],
+    ["an unquoted heredoc word with a dash", "FROM a\nRUN <<END-TEXT\ncontent\nEND-TEXT\nCOPY a/b.txt /c"],
+    ["a shift that is not a heredoc", "FROM a\nRUN echo $((1<<BITS))\nCOPY a/b.txt /c"],
+    ["a heredoc marker outside RUN, COPY and ADD", 'FROM a\nLABEL note="<<EOF"\nCOPY a/b.txt /c'],
+    ["a blank line inside a continuation", "FROM a\nRUN echo one \\\n\n    add-content content\nCOPY a/b.txt /c"],
+  ])("reads build files with %s", async (_name, text) => {
+    expect(await stagesOf(text)).toEqual([{ from: "a", copies: [{ src: ["a/b.txt"], dest: "/c" }] }]);
+  });
+
+  it("does not treat an ignore file as a build file", async () => {
+    const project = await collectProject(makeTree({ Dockerfile: "FROM a", "Dockerfile.dockerignore": "a/b.txt" }));
+    expect(Object.keys(project.docker)).toEqual(["Dockerfile"]);
+    expect(project.build_targets).toEqual([{ kind: "docker", path: "Dockerfile", context: "." }]);
+  });
+
+  it("skips version control files", async () => {
+    expect((await collectProject(makeTree({ "a/.git": "content", "a/b.txt": "content" }))).tree).toEqual(["a/b.txt"]);
+  });
+
+  it("stays fast on large inputs", async () => {
+    const files: Record<string, string> = { Dockerfile: "FROM a\n" + "WORKDIR a\n".repeat(26_000) };
+    const entries = Array.from({ length: 7_000 }, (_, i) => `  f${i}: { handler: h, runtime: r }`).join("\n");
+    for (let i = 0; i < 10; i++) files[`d${i}/serverless.yml`] = `functions:\n${entries}\n`;
+    const start = performance.now();
+    await collectProject(makeTree(files));
+    expect(performance.now() - start).toBeLessThan(10_000);
+  }, 120_000);
+});
+
 describe("the request body", () => {
   const validate = specValidator("CanaryRequest");
   const request = (project: Project) => ({ action_version: "1.0.0", pipeline: { findings: [], incomplete: false }, project });

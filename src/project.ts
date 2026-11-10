@@ -19,12 +19,14 @@ export type Project = {
 };
 
 export const MAX_TREE = 5000;
-const MAX_FILE_BYTES = 1 << 20;
+const MAX_FILE_BYTES = 256 * 1024;
+const MAX_TOTAL_BYTES = 1024 * 1024;
 const SKIPPED_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv"]);
 const NOT_PARSED_UNDER = ".github/";
 
 const NODE_NAME = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
 const PYTHON_NAME = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/i;
+const LOCAL_REQUIREMENT = /^\s*(?:[.~/]|\S*[/\\]|\S+\.(?:whl|zip|tgz|tar(?:\.\w+)?)(?:\s|$))/i;
 const NODE_DEPENDENCY_FIELDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
 type Read = (file: string) => Promise<string | undefined>;
@@ -32,7 +34,12 @@ type Collected = Omit<Project, "tree" | "build_targets"> & { targets: BuildTarge
 
 export async function collectProject(root: string): Promise<Project> {
   const tree = await walk(root);
-  const read: Read = (file) => readSmall(path.join(root, ...file.split("/")));
+  let budget = MAX_TOTAL_BYTES;
+  const read: Read = async (file) => {
+    const text = await readSmall(path.join(root, ...file.split("/")), budget);
+    if (text !== undefined) budget -= text.length;
+    return text;
+  };
   const collected: Collected = { dependencies: { node: [], python: [] }, manifests: {}, docker: {}, lambda: {}, targets: [] };
   const inTree = new Set(tree);
   for (const file of tree) {
@@ -62,7 +69,9 @@ function collectorFor(name: string): Collector | undefined {
   if (/^requirements.*\.txt$/i.test(name)) return collectRequirements;
   if (name === "pyproject.toml") return collectPyproject;
   if (name === "Pipfile") return collectPipfile;
-  if (/^(?:Dockerfile|Containerfile)(?:\..+)?$|\.(?:Dockerfile|Containerfile)$/i.test(name)) return collectImageBuild;
+  if (/^(?:Dockerfile|Containerfile)(?:\..+)?$|\.(?:Dockerfile|Containerfile)$/i.test(name) && !/\.dockerignore$/i.test(name)) {
+    return collectImageBuild;
+  }
   if (/^template\.(?:ya?ml|json)$/i.test(name)) return collectSamTemplate;
   if (/^serverless\.(?:ya?ml|json)$/i.test(name)) return collectServerless;
   return undefined;
@@ -84,9 +93,10 @@ async function walk(root: string): Promise<string[]> {
       const subdirs: string[] = [];
       for (const entry of entries) {
         const rel = dir ? `${dir}/${entry.name}` : entry.name;
+        if (SKIPPED_DIRS.has(entry.name)) continue;
         if (entry.isFile()) {
           if (files.length < MAX_TREE) files.push(rel);
-        } else if (entry.isDirectory() && !SKIPPED_DIRS.has(entry.name) && !(await isVirtualEnv(root, rel))) {
+        } else if (entry.isDirectory() && !(await isVirtualEnv(root, rel))) {
           subdirs.push(rel);
         }
       }
@@ -105,9 +115,9 @@ async function isVirtualEnv(root: string, dir: string): Promise<boolean> {
   }
 }
 
-async function readSmall(file: string): Promise<string | undefined> {
+async function readSmall(file: string, budget: number): Promise<string | undefined> {
   try {
-    if ((await stat(file)).size > MAX_FILE_BYTES) return undefined;
+    if ((await stat(file)).size > Math.min(MAX_FILE_BYTES, budget)) return undefined;
     return await readFile(file, "utf8");
   } catch {
     return undefined;
@@ -132,7 +142,9 @@ function collectPackageJson(file: string, text: string, into: Collected): void {
 
 function collectRequirements(_file: string, text: string, into: Collected): void {
   for (const line of text.replace(/\\\r?\n/g, " ").split(/\r?\n/)) {
-    const name = requirementName(line.replace(/(^|\s)#.*$/, ""));
+    const requirement = line.replace(/(^|\s)#.*$/, "");
+    if (LOCAL_REQUIREMENT.test(requirement)) continue;
+    const name = requirementName(requirement);
     if (name) into.dependencies.python.push(name);
   }
 }
@@ -191,22 +203,25 @@ async function collectImageBuild(file: string, text: string, into: Collected, tr
 }
 
 export function reduceImageBuild(text: string): Stage[] {
-  const stages: Stage[] = [];
+  const stages: { stage: Stage; workdirs: string[] }[] = [];
   for (const { keyword, args } of instructions(text)) {
-    const stage = stages.at(-1);
+    const current = stages.at(-1);
     if (keyword === "FROM") {
       const image = args.split(/\s+/).find((token) => token && !token.startsWith("--"));
-      if (image) stages.push({ from: image, copies: [] });
-    } else if (!stage) {
+      if (image) stages.push({ stage: { from: image, copies: [] }, workdirs: [] });
+    } else if (!current) {
       continue;
     } else if (keyword === "WORKDIR" && args) {
-      stage.workdir = stage.workdir && !args.startsWith("/") ? path.posix.join(stage.workdir, args) : args;
+      if (args.startsWith("/")) current.workdirs = [];
+      current.workdirs.push(args);
     } else if (keyword === "COPY" || keyword === "ADD") {
       const copy = reduceCopy(args);
-      if (copy) stage.copies.push(copy);
+      if (copy) current.stage.copies.push(copy);
     }
   }
-  return stages;
+  return stages.map(({ stage, workdirs }) =>
+    workdirs.length === 0 ? stage : { ...stage, workdir: workdirs.length === 1 ? workdirs[0] : path.posix.join(...workdirs) },
+  );
 }
 
 function reduceCopy(args: string): Copy | undefined {
@@ -227,6 +242,8 @@ function reduceCopy(args: string): Copy | undefined {
   return src.length > 0 ? { src, dest } : undefined;
 }
 
+const HEREDOC_KEYWORDS = new Set(["RUN", "COPY", "ADD"]);
+
 function* instructions(text: string): Generator<{ keyword: string; args: string }> {
   const lines = text.split(/\r?\n/);
   let escape = "\\";
@@ -240,7 +257,7 @@ function* instructions(text: string): Generator<{ keyword: string; args: string 
     let logical = "";
     for (; i < lines.length; i++) {
       const line = lines[i];
-      if (/^\s*#/.test(line)) continue;
+      if (/^\s*#/.test(line) || (logical && !line.trim())) continue;
       const trimmed = line.trimEnd();
       if (!trimmed.endsWith(escape)) {
         logical += line;
@@ -249,15 +266,19 @@ function* instructions(text: string): Generator<{ keyword: string; args: string 
       }
       logical += trimmed.slice(0, -1) + " ";
     }
-    const match = /^\s*([a-z]+)\s*(.*)$/is.exec(logical);
+    const match = /^\s*([a-z]+)(?:\s+(.*))?$/is.exec(logical);
     if (!match) continue;
     const keyword = match[1].toUpperCase();
-    for (const heredoc of match[2].matchAll(/<<(-?)(["']?)([A-Za-z_][A-Za-z0-9_]*)\2/g)) {
-      const strip = heredoc[1] === "-";
-      while (i < lines.length && (strip ? lines[i].replace(/^\t+/, "") : lines[i]) !== heredoc[3]) i++;
-      i++;
+    const args = (match[2] ?? "").trim();
+    if (HEREDOC_KEYWORDS.has(keyword)) {
+      for (const heredoc of args.matchAll(/(?:^|\s)<<(-?)(?:"([^"]+)"|'([^']+)'|([^\s"'<>|&;()]+))/g)) {
+        const word = heredoc[2] ?? heredoc[3] ?? heredoc[4];
+        const strip = heredoc[1] === "-";
+        while (i < lines.length && (strip ? lines[i].replace(/^\t+/, "") : lines[i]) !== word) i++;
+        i++;
+      }
     }
-    yield { keyword, args: match[2].trim() };
+    yield { keyword, args };
   }
 }
 
