@@ -21,3 +21,25 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check:dist
+
+  api-breaking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fail on breaking changes to the API spec
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SPEC: openapi/action-v1.yaml
+          OASDIFF: tufin/oasdiff@sha256:82b1840a77335562bb11ce95f77ad31745a0c6f3a770929333ed1c5ef466e400
+        run: |
+          if ! git cat-file -e "$BASE:$SPEC" 2>/dev/null; then
+            echo "::notice::$SPEC does not exist at $BASE, nothing to compare"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git show "$BASE:$SPEC" > "$RUNNER_TEMP/base/spec.yaml"
+          docker run --rm --network none \
+            -v "$RUNNER_TEMP/base:/base:ro" -v "$PWD/openapi:/revision:ro" \
+            "$OASDIFF" breaking /base/spec.yaml /revision/action-v1.yaml --fail-on WARN
