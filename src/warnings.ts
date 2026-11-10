@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 
 const WARNINGS = {
-  internal_error: "The action hit an unexpected error and stopped.",
+  internal_error: "The action hit an error and stopped.",
   timed_out: "The action ran past its time budget and stopped.",
 } as const satisfies Record<string, string>;
 
