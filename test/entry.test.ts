@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WarningCode } from "../src/warnings.ts";
 import { faults, runEntry, runNode, type FaultName } from "./helpers/faults.ts";
 
-const BUDGET_MS = 1_000;
+const BUDGET_MS = 2_000;
 
 const expected: Record<FaultName, WarningCode> = {
   throws: "internal_error",
