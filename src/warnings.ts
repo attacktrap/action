@@ -8,5 +8,7 @@ const WARNINGS = {
 export type WarningCode = keyof typeof WARNINGS;
 
 export function warn(code: WarningCode): void {
-  core.warning(`Woozle Trap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
+  try {
+    core.warning(`Woozle Trap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
+  } catch {}
 }
