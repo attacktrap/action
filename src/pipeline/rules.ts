@@ -54,6 +54,8 @@ const ACTIONS: [prefix: string, match: (inputs: Inputs) => Finding | undefined][
   ["aws-actions/vulnerability-scan-github-action-for-amazon-inspector", () => scanner("aws_inspector")],
 ];
 
+export const OWN_ACTION = "attacktrap/action";
+
 // Remote actions known not to run steps of their own. Any other remote action may be a composite
 // action, which the check can't read, so it makes the check incomplete.
 const KNOWN_ACTIONS = [
@@ -78,7 +80,7 @@ const KNOWN_ACTIONS = [
   "docker/build-push-action",
   "aws-actions/amazon-ecr-login",
   "aws-actions/configure-aws-",
-  "woozle-trap/action",
+  OWN_ACTION,
 ];
 
 export function actionName(uses: string): string {

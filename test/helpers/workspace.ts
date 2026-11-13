@@ -5,7 +5,7 @@ import { stringify } from "yaml";
 import { checkPipeline, type Pipeline, type RunnerEnv } from "../../src/pipeline/check.ts";
 
 export const WORKFLOW = ".github/workflows/ci.yml";
-export const THIS_STEP = { uses: "woozle-trap/action@v1" };
+export const THIS_STEP = { uses: "attacktrap/action@v1" };
 
 export type Files = Record<string, string | object>;
 
@@ -27,7 +27,7 @@ export function env(root: string, overrides: Partial<RunnerEnv> = {}): RunnerEnv
     workflowRef: `o/r/${WORKFLOW}@refs/heads/main`,
     jobWorkflowRef: undefined,
     job: "build",
-    action: "__woozle-trap_action",
+    action: "__attacktrap_action",
     ...overrides,
   };
 }

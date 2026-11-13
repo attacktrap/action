@@ -19,7 +19,7 @@ describe("entry", () => {
   it.each(Object.keys(faults) as FaultName[])("%s exits 0 with only its fixed warning", async (fault) => {
     const result = await runEntry(fault, { budgetMs: BUDGET_MS });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(`::warning::Woozle Trap [${expected[fault]}]: `);
+    expect(result.stdout).toContain(`::warning::AttackTrap [${expected[fault]}]: `);
     expect(result.stdout.match(/::warning::/g)).toHaveLength(1);
     expect(result.stdout).not.toContain("fault content");
     expect(result.stderr).not.toContain("fault content");

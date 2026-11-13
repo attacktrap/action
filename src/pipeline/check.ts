@@ -2,7 +2,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
 import { findCall, makeRecipes, type Call } from "./calls.ts";
-import { actionName, commands, hasPrefix, isKnownAction, matchAction, matchScript, type Finding } from "./rules.ts";
+import { actionName, commands, hasPrefix, isKnownAction, matchAction, matchScript, OWN_ACTION, type Finding } from "./rules.ts";
 
 export type { Finding, ToolId } from "./rules.ts";
 
@@ -102,7 +102,7 @@ function ownStep(steps: unknown[], action: string | undefined): number {
   if (byId !== -1) return byId;
   return steps.findIndex((s) => {
     const uses = str(get(s, "uses"));
-    return uses !== undefined && hasPrefix(actionName(uses), "woozle-trap/action");
+    return uses !== undefined && hasPrefix(actionName(uses), OWN_ACTION);
   });
 }
 
