@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Woozle Trap Action API
+  title: AttackTrap Action API
   version: 1.0.0
   description: |
     The exchange between the Action and its server. The Action sends a
@@ -83,7 +83,7 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        A GitHub Actions OIDC token with audience `woozle-trap`. The Action
+        A GitHub Actions OIDC token with audience `attacktrap`. The Action
         requests a fresh token for each call.
   schemas:
     CanaryRequest:

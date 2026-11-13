@@ -1,9 +1,9 @@
-# Woozle Trap
+# AttackTrap
 
 A GitHub Action step that runs quietly alongside your workflow.
 
 ```yaml
-- uses: <owner>/<repo>@v1
+- uses: attacktrap/action@v1
 ```
 
 It takes no inputs. It never fails your build. If anything goes wrong or it runs past its time budget, it prints a warning and exits successfully.

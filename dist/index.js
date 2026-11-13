@@ -19603,7 +19603,7 @@ var WARNINGS = {
 };
 function warn(code) {
   try {
-    warning(`Woozle Trap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
+    warning(`AttackTrap [${code}]: ${WARNINGS[code]} Your build is unaffected.`);
   } catch {
   }
 }

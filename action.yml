@@ -1,4 +1,4 @@
-name: Woozle Trap
+name: AttackTrap
 description: A drop-in step that never fails your build.
 runs:
   using: node24
