@@ -13607,7 +13607,7 @@ var require_fetch = __commonJS({
     function handleFetchDone(response) {
       finalizeAndReportTiming(response, "fetch");
     }
-    function fetch(input, init = void 0) {
+    function fetch2(input, init = void 0) {
       webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
       let p = createDeferredPromise();
       let requestObject;
@@ -14562,7 +14562,7 @@ var require_fetch = __commonJS({
       }
     }
     module.exports = {
-      fetch,
+      fetch: fetch2,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -19100,7 +19100,7 @@ var require_undici = __commonJS({
     module.exports.setGlobalDispatcher = setGlobalDispatcher;
     module.exports.getGlobalDispatcher = getGlobalDispatcher;
     var fetchImpl = require_fetch().fetch;
-    module.exports.fetch = async function fetch(init, options = void 0) {
+    module.exports.fetch = async function fetch2(init, options = void 0) {
       try {
         return await fetchImpl(init, options);
       } catch (err) {
@@ -19588,14 +19588,6 @@ function warning(message, properties = {}) {
   issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 
-// src/api.ts
-var API_BASE_URL = "https://app.attacktrap.com";
-
-// src/action.ts
-async function action() {
-  debug(`API base URL: ${API_BASE_URL}`);
-}
-
 // src/main.ts
 import { spawn } from "node:child_process";
 
@@ -19660,6 +19652,14 @@ function supervise(budgetMs) {
   } catch {
     finish("internal_error");
   }
+}
+
+// src/api.ts
+var API_BASE_URL = "https://app.attacktrap.com";
+
+// src/action.ts
+async function action() {
+  debug(`API base URL: ${API_BASE_URL}`);
 }
 
 // src/index.ts
