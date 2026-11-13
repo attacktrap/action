@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { say, SKIPS, type Outcome } from "../src/warnings.ts";
@@ -49,5 +51,27 @@ describe("say", () => {
   it("links only to the sign-up page, and only for not_onboarded", () => {
     const links = OUTCOMES.map((outcome) => [outcome, printed(outcome).join("").match(/https?:\/\/[^\s]*[^\s.]/g) ?? []]);
     expect(links.filter(([, urls]) => urls.length > 0)).toEqual([["not_onboarded", ["https://app.attacktrap.com/"]]]);
+  });
+});
+
+describe("printing", () => {
+  // core is reachable only as `import * as core`, so every use of it shows up as `core.<name>`.
+  const QUIET_CORE = new Set(["getIDToken", "setSecret"]);
+  const PRINTS = [
+    /\bconsole\.\w+/g,
+    /\bprocess\.std(?:out|err)\b/g,
+    /\bimport\s+(?!\*\s+as\s+core\s)[^;]*?from\s+["']@actions\/core["']/g,
+    /\bimport\s*\(\s*["']@actions\/core["']/g,
+  ];
+  const prints = (text: string) => [
+    ...[...text.matchAll(/\bcore\.(\w+)/g)].filter((m) => !QUIET_CORE.has(m[1])).map((m) => m[0]),
+    ...PRINTS.flatMap((pattern) => [...text.matchAll(pattern)].map((m) => m[0])),
+  ];
+
+  it("happens only in warnings.ts", () => {
+    const src = fileURLToPath(new URL("../src/", import.meta.url));
+    const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".ts") && f !== "warnings.ts");
+    const found = files.map((f) => [f, prints(readFileSync(path.join(src, f), "utf8"))] as const).filter(([, uses]) => uses.length > 0);
+    expect(found).toEqual([]);
   });
 });

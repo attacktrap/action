@@ -1,6 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { fileURLToPath } from "node:url";
+import { runNode, type EntryResult } from "./faults.ts";
 import { specValidator } from "./spec.ts";
+import { makeTree } from "./tree.ts";
 
 // A local stand-in for the OIDC token endpoint and both API operations. It checks every request
 // against the spec and the token rules, and records each violation in `problems`.
@@ -26,6 +29,34 @@ export const skip = (code: string) => ({ result: "skip", code, message: "message
 
 export type Seen = { op: "token" | "canary" | "report" | "other"; method: string; url: string; auth: string | undefined; body: unknown };
 
+export type RunOptions = {
+  /** Workspace files. Default { "a/x.txt": "content" }, so `a/` exists for PLACE.path. */
+  files?: Record<string, string>;
+  /** A prepared directory to use as GITHUB_WORKSPACE instead of `files`; null leaves it unset. */
+  workspace?: string | null;
+  /** false: no OIDC variables at all. */
+  token?: boolean;
+  /** The API origin. Default this fake. */
+  api?: string;
+  env?: NodeJS.ProcessEnv;
+  /** Default 1_000. */
+  callMs?: number;
+  /** Default 10_000. */
+  budgetMs?: number;
+};
+
+export type Log = {
+  lines: string[];
+  /** Values registered with `::add-mask::`, unescaped. The runner consumes these lines. */
+  masks: string[];
+  /** Every other line, debug lines included: what the job log can show. */
+  shown: string[];
+  /** `shown` without `::debug::` lines: the Action's own output. */
+  output: string[];
+};
+
+export type Run = EntryResult & Log & { root: string | undefined };
+
 export type Fake = {
   readonly origin: string;
   /** Can be changed between requests. */
@@ -34,8 +65,12 @@ export type Fake = {
   readonly problems: string[];
   readonly oidcEnv: { ACTIONS_ID_TOKEN_REQUEST_URL: string; ACTIONS_ID_TOKEN_REQUEST_TOKEN: string };
   reports(): unknown[];
+  /** Runs the Action through the real supervisor, aimed at this fake. */
+  run(options?: RunOptions): Promise<Run>;
   close(): Promise<void>;
 };
+
+const FIXTURE = fileURLToPath(new URL("../fixtures/action.ts", import.meta.url));
 
 const validRequest = specValidator("CanaryRequest");
 const validResult = specValidator("PlacementResult");
@@ -97,19 +132,54 @@ export async function fakeServer(script: Script = {}): Promise<Fake> {
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
 
+  const oidcEnv = { ACTIONS_ID_TOKEN_REQUEST_URL: `${origin}/token?api-version=2.0`, ACTIONS_ID_TOKEN_REQUEST_TOKEN: REQUEST_TOKEN };
+
   return {
     origin,
     script,
     seen,
     problems,
-    oidcEnv: { ACTIONS_ID_TOKEN_REQUEST_URL: `${origin}/token?api-version=2.0`, ACTIONS_ID_TOKEN_REQUEST_TOKEN: REQUEST_TOKEN },
+    oidcEnv,
     reports: () => seen.filter((s) => s.op === "report").map((s) => s.body),
+    run: (options = {}) => runAction(origin, oidcEnv, options),
     close: async () => {
       http.closeAllConnections();
       await new Promise((resolve) => http.close(resolve));
     },
   };
 }
+
+async function runAction(origin: string, oidcEnv: Fake["oidcEnv"], options: RunOptions): Promise<Run> {
+  const root = options.workspace === undefined ? makeTree(options.files ?? { "a/x.txt": "content" }) : (options.workspace ?? undefined);
+  const env = isolatedEnv({
+    ...(options.token === false ? {} : oidcEnv),
+    ...(root ? { GITHUB_WORKSPACE: root } : {}),
+    GITHUB_REPOSITORY: "o/r",
+    ...options.env,
+  });
+  const args = [FIXTURE, options.api ?? origin, String(options.callMs ?? 1_000), String(options.budgetMs ?? 10_000)];
+  const result = await runNode(args, env);
+  return { ...result, ...readLog(result.stdout), root };
+}
+
+/** `vars` and nothing else from this process, so a real OIDC endpoint in CI's env can't leak in. */
+export function isolatedEnv(vars: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  // Windows needs SystemRoot to open sockets.
+  return { ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), ...vars };
+}
+
+const MASK = "::add-mask::";
+
+export function readLog(stdout: string): Log {
+  const lines = stdout.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  const masks = lines.filter((l) => l.startsWith(MASK)).map((l) => unescapeData(l.slice(MASK.length)));
+  const shown = lines.filter((l) => !l.startsWith(MASK));
+  return { lines, masks, shown, output: shown.filter((l) => !l.startsWith("::debug::")) };
+}
+
+// The inverse of @actions/core's escapeData for command values.
+const unescapeData = (s: string): string => s.replace(/%0D/g, "\r").replace(/%0A/g, "\n").replace(/%25/g, "%");
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
   let text = "";

@@ -1,5 +1,8 @@
 import * as core from "@actions/core";
 
+// Every line the Action prints comes from this file. test/warnings.test.ts fails when another
+// file in src/ prints.
+
 const PLACED = "AttackTrap: canary placed. Details are in your dashboard.";
 
 export const SKIPS = {
