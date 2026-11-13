@@ -4,8 +4,8 @@ import { SKIPS } from "../src/warnings.ts";
 import { fakeServer, PLACE, skip, type Answer, type Fake, type Script } from "./helpers/server.ts";
 import { specValidator } from "./helpers/spec.ts";
 
-const validPlace = specValidator("Place");
-const validSkip = specValidator("Skip");
+const validPlace = specValidator("Place", { formats: false });
+const validSkip = specValidator("Skip", { formats: false });
 const specAccepts = (body: unknown) => validPlace(body) || validSkip(body);
 
 const ABOUT = {
@@ -54,6 +54,12 @@ const URLS = [
   "https://example.com/a^b",
   "https://example.com/`a`",
   'https://example.com/"a"',
+  "https://example.com/[a]",
+  "https://example.com/a#b#c",
+  "a:[",
+  "http:///",
+  "http://:4",
+  "file:///",
 ];
 const BODIES: [string, unknown][] = [
   ["place", PLACE],
@@ -89,7 +95,7 @@ const BODIES: [string, unknown][] = [
 ];
 
 describe("requestCanary parse", () => {
-  it.each(BODIES)("agrees with the spec on %s", async (_, body) => {
+  it.each(BODIES)("agrees with the spec, with format as an annotation, on %s", async (_, body) => {
     fake.script.canary = { status: 200, json: body };
     const got = await requestCanary(server, "token-1", ABOUT);
     expect(got !== "server_unreachable").toBe(specAccepts(body));

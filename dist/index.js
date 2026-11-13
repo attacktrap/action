@@ -27890,7 +27890,7 @@ function parseReply(body) {
   }
   if (body.result === "skip" && hasExactKeys(body, ["result", "code", "message"], ["url"])) {
     const { code, message, url } = body;
-    if (isSkipCode(code) && isText(message) && (!Object.hasOwn(body, "url") || isUri(url))) return code;
+    if (isSkipCode(code) && isText(message) && (!Object.hasOwn(body, "url") || isText(url))) return code;
   }
   return void 0;
 }
@@ -27901,7 +27901,6 @@ var isJson = (type) => /^application\/json\s*(;|$)/i.test(type ?? "");
 function hasExactKeys(v, required, optional = []) {
   return required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
 }
-var isUri = (v) => typeof v === "string" && /^[a-z][a-z0-9+.-]*:[a-z0-9\-._~:/?#[\]@!$&'()*+,;=%]*$/i.test(v) && !/%(?![0-9a-f]{2})/i.test(v) && URL.canParse(v);
 
 // src/pipeline/check.ts
 var import_yaml = __toESM(require_dist(), 1);

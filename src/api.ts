@@ -89,7 +89,8 @@ function parseReply(body: unknown): UnmaskedPlace | SkipCode | undefined {
   }
   if (body.result === "skip" && hasExactKeys(body, ["result", "code", "message"], ["url"])) {
     const { code, message, url } = body;
-    if (isSkipCode(code) && isText(message) && (!Object.hasOwn(body, "url") || isUri(url))) return code;
+    // `format: uri` is only an annotation in JSON Schema 2020-12, and the Action never reads `url`.
+    if (isSkipCode(code) && isText(message) && (!Object.hasOwn(body, "url") || isText(url))) return code;
   }
   return undefined;
 }
@@ -102,9 +103,3 @@ const isJson = (type: string | null): boolean => /^application\/json\s*(;|$)/i.t
 function hasExactKeys(v: Json, required: readonly string[], optional: readonly string[] = []): boolean {
   return required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
 }
-
-const isUri = (v: unknown): boolean =>
-  typeof v === "string" &&
-  /^[a-z][a-z0-9+.-]*:[a-z0-9\-._~:/?#[\]@!$&'()*+,;=%]*$/i.test(v) &&
-  !/%(?![0-9a-f]{2})/i.test(v) &&
-  URL.canParse(v);
