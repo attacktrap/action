@@ -20,6 +20,7 @@ export type Pipeline = { findings: Finding[]; incomplete: boolean };
 const UNREADABLE: Pipeline = { findings: [{ kind: "unreadable", tool: "unknown" }], incomplete: false };
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_FILES = 200;
+const MAX_STEP_ID = 100;
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -69,10 +70,11 @@ function check(env: RunnerEnv): Pipeline {
   const jobs = get(workflow, "jobs") as Obj;
   const steps = get(jobs[job], "steps");
   if (!Array.isArray(steps)) throw new Unreadable();
-  const index = ownStep(steps, env.action);
-  if (index === -1) throw new Unreadable();
+  const step = ownStep(steps, env.action);
+  if (step === undefined) throw new Unreadable();
+  if (!step.certain) walk.incomplete = true;
 
-  walk.steps(steps.slice(index + 1), walk.jobScope(workflow, jobs[job]));
+  walk.steps(steps.slice(step.index + 1), walk.jobScope(workflow, jobs[job]));
   for (const id of dependents(jobs, [job])) walk.job(workflow, jobs[id], false);
 
   if (caller !== undefined) {
@@ -97,13 +99,46 @@ function repoPath(ref: string, repository: string): string | undefined {
   return path.posix.normalize(name.slice(prefix.length));
 }
 
-function ownStep(steps: unknown[], action: string | undefined): number {
-  const byId = action ? steps.findIndex((s) => str(get(s, "id")) === action) : -1;
-  if (byId !== -1) return byId;
-  return steps.findIndex((s) => {
+// The step whose id is GITHUB_ACTION, or else the only use of this action in the job. With several
+// uses and no id to tell them apart, it's the last one, and uncertain because the steps between
+// them may run later.
+function ownStep(steps: unknown[], action: string | undefined): { index: number; certain: boolean } | undefined {
+  const byId = action ? stepIds(steps).findIndex((id) => id.toLowerCase() === action.toLowerCase()) : -1;
+  if (byId !== -1) return { index: byId, certain: true };
+  const own = steps.flatMap((s, i) => {
     const uses = str(get(s, "uses"));
-    return uses !== undefined && hasPrefix(actionName(uses), OWN_ACTION);
+    return uses !== undefined && hasPrefix(actionName(uses), OWN_ACTION) ? [i] : [];
   });
+  return own.length === 0 ? undefined : { index: own[own.length - 1], certain: own.length === 1 };
+}
+
+// The id GitHub gives each step: its `id`, or else `__` and the action's `owner_repo`, `self` for a
+// local action, the image for `docker://`, or `run`. A name already used in the job, ignoring case,
+// gets `_2`, `_3` and so on. Written ids can't start with `__`, so the two never clash.
+export function stepIds(steps: unknown[]): string[] {
+  const taken = new Set<string>();
+  return steps.map((step) => {
+    const id = str(get(step, "id"));
+    if (id) return id;
+    const base = `__${defaultName(str(get(step, "uses")))}`.replace(/[^\w-]/g, "_");
+    for (let n = 1; ; n++) {
+      const suffix = n === 1 ? "" : `_${n}`;
+      const candidate = base.slice(0, MAX_STEP_ID - suffix.length) + suffix;
+      if (!taken.has(candidate.toLowerCase())) {
+        taken.add(candidate.toLowerCase());
+        return candidate;
+      }
+    }
+  });
+}
+
+function defaultName(uses: string | undefined): string {
+  if (uses === undefined) return "run";
+  if (uses.startsWith("docker://")) return uses.slice("docker://".length);
+  if (uses.startsWith("./") || uses.startsWith(".\\")) return "self";
+  const [name, ref, ...rest] = uses.split("@");
+  const parts = name.split(/[/\\]/).filter(Boolean);
+  return ref && rest.length === 0 && parts.length >= 2 ? `${parts[0]}/${parts[1]}` : "run";
 }
 
 // Jobs that depend on any of `roots` through `needs`, directly or transitively.

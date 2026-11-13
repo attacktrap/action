@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Finding } from "../src/pipeline/check.ts";
+import { stepIds, type Finding } from "../src/pipeline/check.ts";
 import { check, steps, THIS_STEP, WORKFLOW } from "./helpers/workspace.ts";
 
 const publish = (tool: Finding["tool"]): Finding => ({ kind: "public_publish", tool });
@@ -138,6 +138,69 @@ describe("later steps", () => {
       ".github/workflows/b.yml": { jobs: { b: { steps: [run("gitleaks dir .")] } } },
     };
     expect(check(nested)).toEqual({ findings: [], incomplete: true });
+  });
+});
+
+describe("this step", () => {
+  const job = (...list: object[]) => ({ [WORKFLOW]: { jobs: { build: { steps: list } } } });
+  const before = run("gitleaks dir .");
+  const after = run("trufflehog filesystem .");
+  const LATER_ONLY = { findings: [scanner("trufflehog")], incomplete: false };
+
+  it("gives each step the id GitHub generates", () => {
+    const long = `${"a".repeat(60)}/${"b".repeat(60)}@v1`;
+    const list = [
+      { id: "a", run: "true" },
+      run("true"),
+      uses("a/b@v1"),
+      uses("a/b/c@v1"),
+      uses("A/B@v2"),
+      uses("./a"),
+      uses("docker://alpine:3"),
+      uses("a/b"),
+      uses(long),
+      uses(long),
+      run("true"),
+    ];
+    const cut = `__${"a".repeat(60)}_${"b".repeat(37)}`;
+    expect(stepIds(list)).toEqual(["a", "__run", "__a_b", "__a_b_2", "__A_B_3", "__self", "__alpine_3", "__run_2", cut, `${cut.slice(0, 98)}_2`, "__run_3"]);
+  });
+
+  it.each([
+    ["attacktrap/action@v1", "__attacktrap_action"],
+    ["AttackTrap/action@v1", "__AttackTrap_action"],
+    ["attacktrap/action@0123456789abcdef0123456789abcdef01234567", "__attacktrap_action"],
+    ["attacktrap/action@main", "__attacktrap_action"],
+  ])("finds %s by its generated id", (name, action) => {
+    expect(check(job(before, uses(name), after), { action })).toEqual(LATER_ONLY);
+  });
+
+  it("finds a second use without an id by its sequence suffix", () => {
+    const files = job(THIS_STEP, before, THIS_STEP, after);
+    expect(check(files, { action: "__attacktrap_action_2" })).toEqual(LATER_ONLY);
+    expect(check(files, { action: "__attacktrap_action" }).findings).toEqual([scanner("gitleaks"), scanner("trufflehog")]);
+  });
+
+  it("numbers uses that differ only in case together, and skips steps with an id", () => {
+    const files = job({ id: "first", ...THIS_STEP }, uses("AttackTrap/Action@v1"), before, THIS_STEP, after);
+    expect(check(files, { action: "__attacktrap_action_2" })).toEqual(LATER_ONLY);
+    expect(check(files, { action: "first" }).findings).toEqual([scanner("gitleaks"), scanner("trufflehog")]);
+  });
+
+  it("takes the only use of this action when no id matches", () => {
+    expect(check(job(before, THIS_STEP, after), { action: "other" })).toEqual(LATER_ONLY);
+  });
+
+  it("checks after the last use, and is incomplete, when no id matches several uses", () => {
+    const files = job(THIS_STEP, before, THIS_STEP, after);
+    expect(check(files, { action: "other" })).toEqual({ findings: [scanner("trufflehog")], incomplete: true });
+    expect(check(files, { action: undefined })).toEqual({ findings: [scanner("trufflehog")], incomplete: true });
+  });
+
+  it("doesn't take a similar name as this action", () => {
+    for (const name of ["attacktrap/action-x@v1", "attacktrap/actions@v1", "attacktrapx/action@v1", "x/attacktrap/action@v1"]) {
+      expect(check(job(before, uses(name), after), { action: "other" })).toEqual(UNREADABLE);
+    }
   });
 });
 
