@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { WarningCode } from "../src/warnings.ts";
 import { faults, runEntry, runNode, type FaultName } from "./helpers/faults.ts";
@@ -37,5 +38,11 @@ describe("entry", () => {
     const result = await runNode(["dist/index.js"], {});
     expect(result.code).toBe(0);
     expect(result.stdout).not.toContain("::warning::");
+  });
+
+  it("built dist/index.js holds the production API origin and no other", () => {
+    const bundle = readFileSync("dist/index.js", "utf8");
+    expect(bundle).toContain('"https://app.attacktrap.com"');
+    expect(bundle).not.toContain("example.invalid");
   });
 });

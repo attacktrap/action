@@ -19588,9 +19588,12 @@ function warning(message, properties = {}) {
   issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 
+// src/api.ts
+var API_BASE_URL = "https://app.attacktrap.com";
+
 // src/action.ts
 async function action() {
-  debug(`API base URL: ${"https://api.example.invalid"}`);
+  debug(`API base URL: ${API_BASE_URL}`);
 }
 
 // src/main.ts

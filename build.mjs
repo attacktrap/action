@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-import { define } from "./build.config.mjs";
 
 await build({
   entryPoints: ["src/index.ts"],
@@ -10,7 +9,6 @@ await build({
   platform: "node",
   target: "node24",
   legalComments: "none",
-  define,
   banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
 });
 
