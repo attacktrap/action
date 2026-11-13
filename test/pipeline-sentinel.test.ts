@@ -32,7 +32,7 @@ const files: Files = {
         "runs-on": s(),
         env: { [s("B")]: s() },
         steps: [
-          { id: s("id"), name: s(), uses: "woozle-trap/action@v1", with: { [s()]: s() } },
+          { id: s("id"), name: s(), uses: "attacktrap/action@v1", with: { [s()]: s() } },
           { name: s(), if: s(), run: `echo ${s()}\n./${s("a.sh")} ${s()}`, env: { [s("C")]: s() } },
           { run: `make ${s("target")}` },
           { run: `npm run ${s("script")}`, "working-directory": "." },

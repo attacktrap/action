@@ -93,11 +93,11 @@ describe("later steps", () => {
   it("finds this step by its id before the first use of the action", () => {
     const files = {
       [WORKFLOW]: {
-        jobs: { build: { steps: [THIS_STEP, run("gitleaks dir ."), { id: "second", uses: "woozle-trap/action@v1" }] } },
+        jobs: { build: { steps: [THIS_STEP, run("gitleaks dir ."), { id: "second", uses: "attacktrap/action@v1" }] } },
       },
     };
     expect(check(files, { action: "second" })).toEqual(CLEAN);
-    expect(check(files, { action: "__woozle-trap_action" }).findings).toEqual([scanner("gitleaks")]);
+    expect(check(files, { action: "__attacktrap_action" }).findings).toEqual([scanner("gitleaks")]);
   });
 
   const jobs = {
