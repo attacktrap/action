@@ -27788,6 +27788,15 @@ function say(outcome) {
   } catch {
   }
 }
+function flushed() {
+  return new Promise((resolve) => {
+    try {
+      process.stdout.write("", () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
 
 // src/main.ts
 var BUDGET_MS = 3e4;
@@ -27796,6 +27805,7 @@ var WORKER_FLAG = "--work";
 async function main(work, { budgetMs = BUDGET_MS } = {}) {
   if (process.argv.includes(WORKER_FLAG)) {
     await work();
+    await flushed();
     process.exit(0);
   }
   supervise(budgetMs);

@@ -42,3 +42,13 @@ export function say(outcome: Outcome): void {
     core.info(PLACED);
   } catch {}
 }
+
+export function flushed(): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      process.stdout.write("", () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}

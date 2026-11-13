@@ -58,7 +58,7 @@ export function runEntry(
   return runNode(args);
 }
 
-export function runNode(args: string[], env: NodeJS.ProcessEnv = process.env): Promise<EntryResult> {
+export function runNode(args: string[], env: NodeJS.ProcessEnv = process.env, { readAfterMs = 0 } = {}): Promise<EntryResult> {
   return new Promise((resolve, reject) => {
     const start = performance.now();
     const child = spawn(process.execPath, args, { env });
@@ -66,6 +66,10 @@ export function runNode(args: string[], env: NodeJS.ProcessEnv = process.env): P
     let stderr = "";
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
+    if (readAfterMs > 0) {
+      child.stdout.pause();
+      setTimeout(() => child.stdout.resume(), readAfterMs);
+    }
     child.on("error", reject);
     child.on("close", (code) => resolve({ code, stdout, stderr, ms: performance.now() - start }));
   });

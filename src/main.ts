@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { warn, type WarningCode } from "./warnings.ts";
+import { flushed, warn, type WarningCode } from "./warnings.ts";
 
 export const BUDGET_MS = 30_000;
 const EXIT_MARGIN_MS = 500;
@@ -10,6 +10,8 @@ export type Work = () => Promise<void>;
 export async function main(work: Work, { budgetMs = BUDGET_MS } = {}): Promise<void> {
   if (process.argv.includes(WORKER_FLAG)) {
     await work();
+    // Exiting drops writes still queued for a pipe, which on macOS are asynchronous.
+    await flushed();
     process.exit(0);
   }
   supervise(budgetMs);

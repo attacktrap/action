@@ -187,6 +187,15 @@ describe("log", () => {
     ctx.expect(run.lines.slice(1, 5)).toEqual(["::add-mask::token-1", "::add-mask::value-1", "::add-mask::value-2", "::add-mask::a/b.txt"]);
   });
 
+  it.concurrent("keeps every mask and its line when the log reader is slow", async (ctx) => {
+    const { expect } = ctx;
+    const mask = Array.from({ length: 300 }, (_, i) => `value-${i}-${"x".repeat(1_000)}`);
+    const server = await fake(ctx, { canary: { status: 200, json: { ...PLACE, mask } } });
+    const run = await server.run({ readAfterMs: 2_000 });
+    expect(run.masks).toEqual(["token-1", ...mask, PLACE.path, "token-2"]);
+    expect(run.output).toEqual([PLACED]);
+  });
+
   it.concurrent("never shows a skip's message or url, not even as a mask", async (ctx) => {
     const { expect } = ctx;
     const server = await fake(ctx, { canary: { status: 200, json: skip("not_onboarded") } });

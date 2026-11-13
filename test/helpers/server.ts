@@ -31,6 +31,7 @@ export type RunOptions = {
   env?: NodeJS.ProcessEnv;
   callMs?: number;
   budgetMs?: number;
+  readAfterMs?: number;
 };
 
 export type Log = {
@@ -141,7 +142,7 @@ async function runAction(origin: string, oidcEnv: Fake["oidcEnv"], options: RunO
     ...options.env,
   });
   const args = [FIXTURE, options.api ?? origin, String(options.callMs ?? 1_000), String(options.budgetMs ?? 10_000)];
-  const result = await runNode(args, env);
+  const result = await runNode(args, env, { readAfterMs: options.readAfterMs });
   return { ...result, ...readLog(result.stdout), root };
 }
 
