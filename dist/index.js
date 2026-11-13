@@ -29331,6 +29331,7 @@ async function walk(root) {
   while (dirs.length > 0 && files.length < MAX_TREE) {
     const next = [];
     for (const dir of dirs) {
+      if (files.length >= MAX_TREE) break;
       let entries;
       try {
         entries = await readdir2(path2.join(root, ...dir.split("/")), { withFileTypes: true });

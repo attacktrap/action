@@ -83,6 +83,7 @@ async function walk(root: string): Promise<string[]> {
   while (dirs.length > 0 && files.length < MAX_TREE) {
     const next: string[] = [];
     for (const dir of dirs) {
+      if (files.length >= MAX_TREE) break;
       let entries;
       try {
         entries = await readdir(path.join(root, ...dir.split("/")), { withFileTypes: true });
