@@ -5,22 +5,16 @@ import { runNode, type EntryResult } from "./faults.ts";
 import { specValidator } from "./spec.ts";
 import { makeTree } from "./tree.ts";
 
-// A local stand-in for the OIDC token endpoint and both API operations. It checks every request
-// against the spec and the token rules, and records each violation in `problems`.
-
 export const REQUEST_TOKEN = "request-token";
 
 export type Answer =
   | { status: number; json?: unknown; text?: string; headers?: Record<string, string> }
-  | "hang" // read the request and never answer
-  | "drop"; // destroy the socket
+  | "hang"
+  | "drop";
 
 export type Script = {
-  /** Answers token requests in order, repeating the last. "issue" sends a new `token-<n>`. Default ["issue"]. */
   token?: (Answer | "issue")[];
-  /** Default 200 PLACE. */
   canary?: Answer;
-  /** Default 204. */
   report?: Answer;
 };
 
@@ -30,28 +24,19 @@ export const skip = (code: string) => ({ result: "skip", code, message: "message
 export type Seen = { op: "token" | "canary" | "report" | "other"; method: string; url: string; auth: string | undefined; body: unknown };
 
 export type RunOptions = {
-  /** Workspace files. Default { "a/x.txt": "content" }, so `a/` exists for PLACE.path. */
   files?: Record<string, string>;
-  /** A prepared directory to use as GITHUB_WORKSPACE instead of `files`; null leaves it unset. */
   workspace?: string | null;
-  /** false: no OIDC variables at all. */
   token?: boolean;
-  /** The API origin. Default this fake. */
   api?: string;
   env?: NodeJS.ProcessEnv;
-  /** Default 1_000. */
   callMs?: number;
-  /** Default 10_000. */
   budgetMs?: number;
 };
 
 export type Log = {
   lines: string[];
-  /** Values registered with `::add-mask::`, unescaped. The runner consumes these lines. */
   masks: string[];
-  /** Every other line, debug lines included: what the job log can show. */
   shown: string[];
-  /** `shown` without `::debug::` lines: the Action's own output. */
   output: string[];
 };
 
@@ -59,13 +44,11 @@ export type Run = EntryResult & Log & { root: string | undefined };
 
 export type Fake = {
   readonly origin: string;
-  /** Can be changed between requests. */
   readonly script: Script;
   readonly seen: Seen[];
   readonly problems: string[];
   readonly oidcEnv: { ACTIONS_ID_TOKEN_REQUEST_URL: string; ACTIONS_ID_TOKEN_REQUEST_TOKEN: string };
   reports(): unknown[];
-  /** Runs the Action through the real supervisor, aimed at this fake. */
   run(options?: RunOptions): Promise<Run>;
   close(): Promise<void>;
 };
@@ -162,7 +145,6 @@ async function runAction(origin: string, oidcEnv: Fake["oidcEnv"], options: RunO
   return { ...result, ...readLog(result.stdout), root };
 }
 
-/** `vars` and nothing else from this process, so a real OIDC endpoint in CI's env can't leak in. */
 export function isolatedEnv(vars: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   // Windows needs SystemRoot to open sockets.
   return { ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), ...vars };

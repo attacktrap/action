@@ -5,7 +5,6 @@ import { describe, expect, it, type TestContext } from "vitest";
 import { findCheckout, writeInside, type Checkout } from "../src/workspace.ts";
 import { makeTree } from "./helpers/tree.ts";
 
-// A workspace `w/` beside an empty `outside/`, so a test can show nothing landed outside.
 async function setup(files: Record<string, string> = { "w/a/x.txt": "content" }) {
   const top = makeTree(files);
   const outside = path.join(top, "outside");
@@ -19,7 +18,6 @@ const read = (...p: string[]) => readFileSync(path.join(...p), "utf8");
 // Junctions need no symlink rights on Windows.
 const linkDir = (target: string, link: string) => symlinkSync(target, link, "junction");
 
-// File symlinks do need them, so skip where the runner lacks them.
 function linkFile(ctx: TestContext, target: string, link: string): void {
   try {
     symlinkSync(target, link, "file");

@@ -41,8 +41,7 @@ describe("entry", () => {
     expect(readLog(result.stdout).lines).toEqual([expect.stringMatching(/^::warning::AttackTrap \[no_token\]: /)]);
   });
 
-  // dist/ always talks to the production origin, so these stop before the API.
-  it("built dist/index.js with a token and no workspace asks only for the token", async () => {
+  it("built dist/index.js with a token and no workspace never reaches the API", async () => {
     const fake = await fakeServer();
     try {
       const result = await runNode(["dist/index.js"], isolatedEnv(fake.oidcEnv));

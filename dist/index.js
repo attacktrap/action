@@ -6345,9 +6345,9 @@ var require_client_h1 = __commonJS({
         client2.emit("disconnect", client2[kUrl], [client2], err);
         client2[kResume]();
       });
-      let closed2 = false;
+      let closed = false;
       socket.on("close", () => {
-        closed2 = true;
+        closed = true;
       });
       return {
         version: "h1",
@@ -6359,7 +6359,7 @@ var require_client_h1 = __commonJS({
           resumeH1(client);
         },
         destroy(err, callback) {
-          if (closed2) {
+          if (closed) {
             queueMicrotask(callback);
           } else {
             socket.destroy(err).on("close", callback);
@@ -6985,9 +6985,9 @@ var require_client_h2 = __commonJS({
         client.emit("disconnect", client[kUrl], [client], err);
         client[kResume]();
       });
-      let closed2 = false;
+      let closed = false;
       socket.on("close", () => {
-        closed2 = true;
+        closed = true;
       });
       return {
         version: "h2",
@@ -6999,7 +6999,7 @@ var require_client_h2 = __commonJS({
           resumeH2(client);
         },
         destroy(err, callback) {
-          if (closed2) {
+          if (closed) {
             queueMicrotask(callback);
           } else {
             socket.destroy(err).on("close", callback);
@@ -27829,9 +27829,9 @@ var API_BASE_URL = "https://app.attacktrap.com";
 var ACTION_VERSION = "1.0.0";
 var AUDIENCE = "attacktrap";
 var CALL_MS = 2e4;
-var RESERVE_MS = 2e3;
+var MARGIN_BEFORE_KILL_MS = 2e3;
 function serverAt(origin = API_BASE_URL, { callMs = CALL_MS, budgetMs = BUDGET_MS } = {}) {
-  return { origin, callMs, deadline: AbortSignal.timeout(Math.max(0, Math.floor(budgetMs - RESERVE_MS - performance.now()))) };
+  return { origin, callMs, deadline: AbortSignal.timeout(Math.max(0, Math.floor(budgetMs - MARGIN_BEFORE_KILL_MS - performance.now()))) };
 }
 async function getToken(server) {
   try {
@@ -27874,21 +27874,21 @@ function post(server, token, route, body) {
 var callSignal = (server) => AbortSignal.any([AbortSignal.timeout(server.callMs), server.deadline]);
 function bounded(server, work) {
   const signal = callSignal(server);
-  return new Promise((resolve, reject) => {
-    work.then(resolve, reject);
+  const aborted = new Promise((_, reject) => {
     if (signal.aborted) reject(signal.reason);
     else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
   });
+  return Promise.race([work, aborted]);
 }
 function parseReply(body) {
   if (!isObject(body)) return void 0;
-  if (body.result === "place" && closed(body, ["result", "placementId", "path", "content", "mask"])) {
+  if (body.result === "place" && hasExactKeys(body, ["result", "placementId", "path", "content", "mask"])) {
     const { placementId, path: path4, content, mask } = body;
     if (isText(placementId, 1) && isText(path4, 1) && isText(content) && Array.isArray(mask) && mask.every((m) => isText(m))) {
       return { placementId, path: path4, content, mask };
     }
   }
-  if (body.result === "skip" && closed(body, ["result", "code", "message"], ["url"])) {
+  if (body.result === "skip" && hasExactKeys(body, ["result", "code", "message"], ["url"])) {
     const { code, message, url } = body;
     if (isSkipCode(code) && isText(message) && (!Object.hasOwn(body, "url") || isUri(url))) return code;
   }
@@ -27898,7 +27898,7 @@ var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var isText = (v, minLength = 0) => typeof v === "string" && v.length >= minLength;
 var isSkipCode = (v) => typeof v === "string" && Object.hasOwn(SKIPS, v);
 var isJson = (type) => /^application\/json\s*(;|$)/i.test(type ?? "");
-function closed(v, required, optional = []) {
+function hasExactKeys(v, required, optional = []) {
   return required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
 }
 var isUri = (v) => typeof v === "string" && /^[a-z][a-z0-9+.-]*:[a-z0-9\-._~:/?#[\]@!$&'()*+,;=%]*$/i.test(v) && !/%(?![0-9a-f]{2})/i.test(v) && URL.canParse(v);
@@ -28341,8 +28341,8 @@ var Walk = class {
     if (++this.reads > MAX_FILES) return void 0;
     try {
       const real = realpathSync(path.resolve(this.root, relative));
-      const inside2 = path.relative(this.root, real);
-      if (inside2.startsWith("..") || path.isAbsolute(inside2)) return void 0;
+      const inside = path.relative(this.root, real);
+      if (inside.startsWith("..") || path.isAbsolute(inside)) return void 0;
       const stat3 = statSync(real);
       if (!stat3.isFile() || stat3.size > MAX_FILE_BYTES) return void 0;
       return readFileSync(real, "utf8");
@@ -29589,14 +29589,14 @@ async function writeInside(checkout, rel, content) {
   const { root } = checkout;
   if (path3.posix.isAbsolute(rel) || path3.win32.isAbsolute(rel)) return "write_failed";
   const target = path3.resolve(root, rel);
-  if (!inside(root, target)) return "write_failed";
+  if (!strictlyBelow(root, target)) return "write_failed";
   let parent;
   try {
     parent = await realpath(path3.dirname(target));
   } catch {
     return "write_failed";
   }
-  if (parent !== root && !inside(root, parent)) return "write_failed";
+  if (parent !== root && !strictlyBelow(root, parent)) return "write_failed";
   const file = path3.join(parent, path3.basename(target));
   let handle;
   try {
@@ -29616,7 +29616,7 @@ async function writeInside(checkout, rel, content) {
     return "write_failed";
   }
 }
-function inside(root, p) {
+function strictlyBelow(root, p) {
   const rel = path3.relative(root, p);
   return rel !== "" && !path3.isAbsolute(rel) && rel.split(path3.sep)[0] !== "..";
 }

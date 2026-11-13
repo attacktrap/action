@@ -1,8 +1,5 @@
 import * as core from "@actions/core";
 
-// Every line the Action prints comes from this file. test/warnings.test.ts fails when another
-// file in src/ prints.
-
 const PLACED = "AttackTrap: canary placed. Details are in your dashboard.";
 
 export const SKIPS = {
@@ -31,7 +28,6 @@ const WARNINGS = {
 export type SkipCode = keyof typeof SKIPS;
 export type WarningCode = keyof typeof WARNINGS;
 
-/** How a run ends. `internal_error` and `timed_out` belong to the supervisor in main.ts. */
 export type Outcome = "written" | Exclude<WarningCode, "internal_error" | "timed_out">;
 
 export function warn(code: WarningCode): void {
@@ -40,7 +36,6 @@ export function warn(code: WarningCode): void {
   } catch {}
 }
 
-/** Prints the run's one line. */
 export function say(outcome: Outcome): void {
   if (outcome !== "written") return warn(outcome);
   try {

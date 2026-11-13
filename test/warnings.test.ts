@@ -55,7 +55,6 @@ describe("say", () => {
 });
 
 describe("printing", () => {
-  // core is reachable only as `import * as core`, so every use of it shows up as `core.<name>`.
   const QUIET_CORE = new Set(["getIDToken", "setSecret"]);
   const PRINTS = [
     /\bconsole\.\w+/g,

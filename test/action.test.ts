@@ -6,8 +6,6 @@ import type { Outcome } from "../src/warnings.ts";
 import { fakeServer, PLACE, skip, type RunOptions, type Script } from "./helpers/server.ts";
 import { makeTree } from "./helpers/tree.ts";
 
-// The real supervisor and flow (test/fixtures/action.ts), aimed at a local fake.
-
 const DEBUG = { RUNNER_DEBUG: "1", ACTIONS_STEP_DEBUG: "true" };
 const SKIP_CODES = [
   "not_onboarded",
@@ -21,7 +19,6 @@ const SKIP_CODES = [
 ] as const;
 const PLACED = "AttackTrap: canary placed. Details are in your dashboard.";
 const warning = (code: string) => new RegExp(`^::warning::AttackTrap \\[${code}\\]: .+ Your build is unaffected\\.$`);
-// Every value the fake can send, so one check covers them all.
 const SERVER_TEXT = ["value-", "message-1", "content", "id-1", "example.com", PLACE.path];
 
 async function fake(ctx: TestContext, script?: Script) {
@@ -158,8 +155,6 @@ describe("log", () => {
     const server = await fake(ctx, { canary: { status: 200, json: { ...PLACE, mask: ["value-1", "", "value-2"] } } });
     const run = await server.run();
     const tokenUrl = `::debug::ID token url is ${server.oidcEnv.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=attacktrap`;
-    // The runner consumes ::add-mask:: lines, so only they may carry a value, and they must come
-    // straight after the first token, before anything the log shows.
     expect(run.lines).toEqual([
       tokenUrl,
       "::add-mask::token-1",
