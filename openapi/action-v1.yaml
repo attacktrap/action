@@ -299,8 +299,8 @@ components:
           minLength: 1
           description: |
             Where the Action writes `content`, relative to the workspace. The
-            Action writes only if the path resolves inside the workspace and
-            nothing exists there yet.
+            Action writes only if the path resolves inside the workspace, its
+            directory already exists, and nothing exists there yet.
           examples: [dir/file.txt]
         content:
           type: string
@@ -324,11 +324,11 @@ components:
           $ref: "#/components/schemas/SkipCode"
         message:
           type: string
-          description: A human-readable explanation of `code`.
+          description: A human-readable explanation of `code`. The Action doesn't print it.
         url:
           type: string
           format: uri
-          description: A link the Action includes in its warning.
+          description: A link with more about `code`. The Action doesn't print it.
     SkipCode:
       type: string
       enum:

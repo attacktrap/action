@@ -15,10 +15,10 @@ function localRefs(node: unknown): unknown {
   );
 }
 
-export function specValidator(name: string): ValidateFunction {
+export function specValidator(name: string, { formats = true } = {}): ValidateFunction {
   const spec = parse(readFileSync(new URL("../../openapi/action-v1.yaml", import.meta.url), "utf8"));
-  const ajv = new Ajv2020({ strict: true, discriminator: true, allErrors: true });
-  addFormats.default(ajv);
+  const ajv = new Ajv2020({ strict: true, discriminator: true, allErrors: true, validateFormats: formats });
+  if (formats) addFormats.default(ajv);
   for (const [schemaName, schema] of Object.entries(spec.components.schemas)) ajv.addSchema(localRefs(schema) as object, schemaName);
   return ajv.getSchema(name)!;
 }
