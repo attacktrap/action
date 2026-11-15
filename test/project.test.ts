@@ -269,9 +269,11 @@ describe("edge cases", () => {
     const files: Record<string, string> = { Dockerfile: "FROM a\n" + "WORKDIR a\n".repeat(26_000) };
     const entries = Array.from({ length: 7_000 }, (_, i) => `  f${i}: { handler: h, runtime: r }`).join("\n");
     for (let i = 0; i < 10; i++) files[`d${i}/serverless.yml`] = `functions:\n${entries}\n`;
-    const start = performance.now();
+    // CPU time rather than wall time, so test files running alongside on a busy runner don't count.
+    const start = process.cpuUsage();
     await collectProject(makeTree(files));
-    expect(performance.now() - start).toBeLessThan(10_000);
+    const { user, system } = process.cpuUsage(start);
+    expect((user + system) / 1_000).toBeLessThan(10_000);
   }, 120_000);
 });
 

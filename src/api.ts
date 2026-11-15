@@ -1,4 +1,6 @@
 import * as core from "@actions/core";
+import { HttpClient } from "@actions/http-client";
+import { fetch, type Response } from "undici";
 import { BUDGET_MS } from "./main.ts";
 import type { Pipeline } from "./pipeline/check.ts";
 import type { Project } from "./project.ts";
@@ -54,13 +56,16 @@ export async function reportPlacement(server: Server, place: Place, status: Writ
   } catch {}
 }
 
+// undici's own fetch, because a dispatcher from another undici copy, such as Node's built-in one, isn't guaranteed to work.
 function post(server: Server, token: string, route: string, body: object): Promise<Response> {
-  return fetch(new URL(route, server.origin), {
+  const url = new URL(route, server.origin);
+  return fetch(url, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
     redirect: "error",
     signal: callSignal(server),
+    dispatcher: new HttpClient().getAgentDispatcher(url.href),
   });
 }
 

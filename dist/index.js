@@ -27750,6 +27750,9 @@ function getIDToken(aud) {
   });
 }
 
+// src/api.ts
+var import_undici2 = __toESM(require_undici(), 1);
+
 // src/main.ts
 import { spawn } from "node:child_process";
 
@@ -27873,12 +27876,14 @@ async function reportPlacement(server, place, status) {
   }
 }
 function post(server, token, route, body) {
-  return fetch(new URL(route, server.origin), {
+  const url = new URL(route, server.origin);
+  return (0, import_undici2.fetch)(url, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
     redirect: "error",
-    signal: callSignal(server)
+    signal: callSignal(server),
+    dispatcher: new HttpClient().getAgentDispatcher(url.href)
   });
 }
 var callSignal = (server) => AbortSignal.any([AbortSignal.timeout(server.callMs), server.deadline]);
