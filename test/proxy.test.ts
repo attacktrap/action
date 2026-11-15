@@ -22,8 +22,9 @@ async function proxy(ctx: TestContext, mode: ProxyMode) {
 const unresolvable = (origin: string) => `http://a.invalid:${new URL(origin).port}`;
 const host = (origin: string) => `a.invalid:${new URL(origin).port}`;
 
+// One at a time: each case starts a runner process, and running them together slows the timing tests in other files.
 describe("through a proxy", () => {
-  it.concurrent.for([
+  it.for([
     ["HTTP_PROXY", (url: string) => ({ HTTP_PROXY: url })],
     ["http_proxy", (url: string) => ({ http_proxy: url })],
     ["NO_PROXY for another host", (url: string) => ({ HTTP_PROXY: url, NO_PROXY: "b.invalid,.example.com" })],
@@ -47,7 +48,7 @@ describe("through a proxy", () => {
     }
   });
 
-  it.concurrent.for(["HTTPS_PROXY", "https_proxy"])("asks %s to connect to an https origin", async (name, ctx) => {
+  it.for(["HTTPS_PROXY", "https_proxy"])("asks %s to connect to an https origin", async (name, ctx) => {
     const { expect } = ctx;
     const server = await fake(ctx);
     const p = await proxy(ctx, "refuse");
@@ -57,7 +58,7 @@ describe("through a proxy", () => {
     expect(p.connects).toEqual(["a.invalid:443"]);
   });
 
-  it.concurrent("still refuses a redirect through the proxy", async (ctx) => {
+  it("still refuses a redirect through the proxy", async (ctx) => {
     const { expect } = ctx;
     const server = await fake(ctx, { canary: { status: 302, headers: { location: "/v1/elsewhere" } } });
     const p = await proxy(ctx, { tunnel: server.origin });
@@ -68,7 +69,7 @@ describe("through a proxy", () => {
 });
 
 describe("NO_PROXY", () => {
-  it.concurrent.for([
+  it.for([
     ["http://a.invalid", "a.invalid"],
     ["http://a.invalid", "A.INVALID"],
     ["http://a.invalid", ".invalid"],
@@ -87,7 +88,7 @@ describe("NO_PROXY", () => {
     expect(p.requests).toEqual([]);
   });
 
-  it.concurrent("reaches the server directly for a NO_PROXY host", async (ctx) => {
+  it("reaches the server directly for a NO_PROXY host", async (ctx) => {
     const { expect } = ctx;
     const server = await fake(ctx);
     const p = await proxy(ctx, "refuse");
@@ -102,7 +103,7 @@ describe("a broken proxy", () => {
   const CALL_MS = 1_000;
   const BUDGET_MS = 5_000;
 
-  it.concurrent.for([
+  it.for([
     ["unreachable, with a user in the URL", async () => (await closedProxyUrl()).replace("//", "//user-1:value-1@")],
     ["refusing", async (ctx: TestContext) => (await proxy(ctx, "refuse")).url],
     ["hanging", async (ctx: TestContext) => (await proxy(ctx, "hang")).url],
@@ -120,7 +121,7 @@ describe("a broken proxy", () => {
     expect(run.stdout).not.toContain(proxyUrl);
   });
 
-  it.concurrent("keeps a report that hangs behind the proxy silent", async (ctx) => {
+  it("keeps a report that hangs behind the proxy silent", async (ctx) => {
     const { expect } = ctx;
     const server = await fake(ctx, { report: "hang" });
     const p = await proxy(ctx, { tunnel: server.origin });
