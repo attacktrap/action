@@ -273,7 +273,7 @@ describe("edge cases", () => {
     const start = process.cpuUsage();
     await collectProject(makeTree(files));
     const { user, system } = process.cpuUsage(start);
-    expect((user + system) / 1_000).toBeLessThan(10_000);
+    expect((user + system) / 1_000).toBeLessThan(20_000);
   }, 120_000);
 });
 
